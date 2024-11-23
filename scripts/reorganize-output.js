@@ -3,11 +3,7 @@ const path = require('path');
 
 async function reorganizeOutput() {
   const outDir = path.join(__dirname, '../out');
-  const tempDir = path.join(__dirname, '../temp-out');
   const assetsDir = path.join(outDir, 'assets');
-
-  // Create temporary directory
-  await fs.ensureDir(tempDir);
 
   // Create assets directory structure
   await fs.ensureDir(path.join(assetsDir, 'css'));
@@ -15,50 +11,71 @@ async function reorganizeOutput() {
   await fs.ensureDir(path.join(assetsDir, 'images'));
   await fs.ensureDir(path.join(assetsDir, 'fonts'));
 
-  // Move static files to appropriate directories
   try {
-    // Move CSS files
-    await fs.copy(
-      path.join(outDir, '_next/static/css'),
-      path.join(assetsDir, 'css'),
-      { overwrite: true }
-    );
+    // Move and rename static files
+    const nextStaticDir = path.join(outDir, '_next/static');
+    if (await fs.pathExists(nextStaticDir)) {
+      // Move CSS files
+      const cssDir = path.join(nextStaticDir, 'css');
+      if (await fs.pathExists(cssDir)) {
+        await fs.copy(cssDir, path.join(assetsDir, 'css'), { overwrite: true });
+      }
 
-    // Move JS files
-    const jsFiles = path.join(outDir, '_next/static/chunks');
-    if (await fs.pathExists(jsFiles)) {
-      await fs.copy(jsFiles, path.join(assetsDir, 'js'), { overwrite: true });
-    }
+      // Move JS files
+      const chunksDir = path.join(nextStaticDir, 'chunks');
+      if (await fs.pathExists(chunksDir)) {
+        await fs.copy(chunksDir, path.join(assetsDir, 'js'), { overwrite: true });
+      }
 
-    // Move media files
-    const mediaDir = path.join(outDir, '_next/static/media');
-    if (await fs.pathExists(mediaDir)) {
-      await fs.copy(mediaDir, path.join(assetsDir, 'images'), { overwrite: true });
-    }
+      // Move media files
+      const mediaDir = path.join(nextStaticDir, 'media');
+      if (await fs.pathExists(mediaDir)) {
+        await fs.copy(mediaDir, path.join(assetsDir, 'images'), { overwrite: true });
+      }
 
-    // Update HTML files to use new paths
-    const htmlFiles = await fs.readdir(outDir);
-    for (const file of htmlFiles) {
-      if (file.endsWith('.html')) {
-        let htmlContent = await fs.readFile(path.join(outDir, file), 'utf8');
-        
-        // Update paths
-        htmlContent = htmlContent.replace(
-          /_next\/static\/css\//g,
-          'assets/css/'
-        );
-        htmlContent = htmlContent.replace(
-          /_next\/static\/chunks\//g,
-          'assets/js/'
-        );
-        htmlContent = htmlContent.replace(
-          /_next\/static\/media\//g,
-          'assets/images/'
-        );
-
-        await fs.writeFile(path.join(outDir, file), htmlContent);
+      // Copy build manifest and other necessary files
+      const buildId = await fs.readdir(path.join(outDir, '_next/static'));
+      for (const id of buildId) {
+        if (id !== 'chunks' && id !== 'css' && id !== 'media') {
+          const manifestDir = path.join(nextStaticDir, id);
+          if (await fs.pathExists(manifestDir)) {
+            await fs.copy(manifestDir, path.join(assetsDir, 'js'), { overwrite: true });
+          }
+        }
       }
     }
+
+    // Update HTML files
+    const processHtmlFile = async (filePath) => {
+      let htmlContent = await fs.readFile(filePath, 'utf8');
+      
+      // Update paths in HTML
+      htmlContent = htmlContent
+        .replace(/\/_next\/static\/css\//g, '/assets/css/')
+        .replace(/\/_next\/static\/chunks\//g, '/assets/js/')
+        .replace(/\/_next\/static\/media\//g, '/assets/images/')
+        .replace(/\/_next\/static\/[^/]+\//g, '/assets/js/')
+        .replace(/="\/assets\//g, '="./assets/');
+
+      await fs.writeFile(filePath, htmlContent);
+    };
+
+    // Process all HTML files recursively
+    const processDirectory = async (dirPath) => {
+      const items = await fs.readdir(dirPath);
+      for (const item of items) {
+        const fullPath = path.join(dirPath, item);
+        const stat = await fs.stat(fullPath);
+        
+        if (stat.isDirectory()) {
+          await processDirectory(fullPath);
+        } else if (item.endsWith('.html')) {
+          await processHtmlFile(fullPath);
+        }
+      }
+    };
+
+    await processDirectory(outDir);
 
     // Clean up
     await fs.remove(path.join(outDir, '_next'));

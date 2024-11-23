@@ -2,13 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'export',
-  /* config options here */
   reactStrictMode: true,
   images: {
     unoptimized: true,
   },
   trailingSlash: true,
-  assetPrefix: '/',
+  basePath: '',
+  assetPrefix: process.env.NODE_ENV === 'production' ? '/' : '',
 };
 
 export default nextConfig;
