@@ -15,4 +15,8 @@ export default {
     },
   },
   plugins: [],
+  future: {
+    hoverOnlyWhenSupported: true,
+  },
+  darkMode: 'class',
 } satisfies Config;

@@ -38,3 +38,27 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+
+# Temp files
+*.log
+.temp/
+temp/
+tmp/
+
+# Build output
+/dist
+.next
+build/
+
+# Environment
+.env.*
+!.env.example
